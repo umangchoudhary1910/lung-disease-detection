@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Lung Disease Detection</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Computer vision research project</p>
+        <h1>Lung Disease Detection</h1>
+        <p>Upload a chest X-ray image to classify it as Normal or Pneumonia.</p>
+      </section>
+
+      <section class="card">
+        <div class="model-badge"><span id="model-dot"></span><span id="model-status">Checking model...</span></div>
+        <form id="prediction-form">
+          <label for="image">Chest X-ray image</label>
+          <input id="image" name="file" type="file" accept="image/png,image/jpeg,image/webp" required>
+          <button type="submit">Analyze image</button>
+        </form>
+        <p id="status" class="status" role="status"></p>
+        <div id="result" class="result" hidden></div>
+      </section>
+
+      <section class="demo-section" aria-labelledby="demo-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Explore the interface</p>
+            <h2 id="demo-heading">Demo images</h2>
+          </div>
+          <p>Illustrative samples for presentation only</p>
+        </div>
+        <div class="demo-grid">
+          <article class="demo-card">
+            <img src="/static/demo-normal.svg" alt="Illustrative normal chest scan">
+            <div><h3>Normal</h3><span>Clear scan example</span></div>
+          </article>
+          <article class="demo-card">
+            <img src="/static/demo-pneumonia.svg" alt="Illustrative pneumonia chest scan">
+            <div><h3>Pneumonia</h3><span>Opacity example</span></div>
+          </article>
+        </div>
+        <p class="demo-note">These are computer-generated illustrations, not medical X-rays. The trained dataset supports only Normal and Pneumonia labels.</p>
+      </section>
+
+      <p class="disclaimer">
+        Research and education only. This demo does not provide medical advice
+        or a clinical diagnosis. Consult a qualified healthcare professional.
+      </p>
+    </main>
+    <script>
+      const form = document.querySelector("#prediction-form");
+      const status = document.querySelector("#status");
+      const result = document.querySelector("#result");
+      const modelStatus = document.querySelector("#model-status");
+      const modelDot = document.querySelector("#model-dot");
+
+      fetch("/model-info")
+        .then((response) => response.json())
+        .then((data) => {
+          const trained = data.mode === "trained";
+          modelStatus.textContent = trained
+            ? "Trained ResNet-18 model active"
+            : "Demo mode — train weights to enable real predictions";
+          modelDot.className = trained ? "trained" : "demo";
+        })
+        .catch(() => { modelStatus.textContent = "Model status unavailable"; });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const file = document.querySelector("#image").files[0];
+        if (!file) return;
+        status.textContent = "Analyzing...";
+        result.hidden = true;
+        const body = new FormData();
+        body.append("file", file);
+
+        try {
+          const response = await fetch("/predict", { method: "POST", body });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Prediction failed.");
+          result.innerHTML = `
+            <p class="eyebrow">Demo prediction</p>
+            <h2>${data.prediction}</h2>
+            <p>Confidence: ${(data.confidence * 100).toFixed(1)}%</p>
+            <small>${data.mode === "trained"
+              ? "Trained model output for research only. It is not a medical diagnosis."
+              : data.disclaimer}</small>`;
+          result.hidden = false;
+          status.textContent = "";
+        } catch (error) {
+          status.textContent = error.message;
+        }
+      });
+    </script>
+  </body>
+</html>
